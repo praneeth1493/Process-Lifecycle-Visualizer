@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Process Lifecycle Visualization Tool | CPU Scheduling Simulator</title>
+    <meta name="description" content="An interactive tool to visualize process lifecycle, CPU scheduling algorithms (FCFS, Round Robin), context switching, and Gantt chart simulation for OS education.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- Animated Background -->
+    <div class="bg-canvas">
+        <div class="bg-orb orb-1"></div>
+        <div class="bg-orb orb-2"></div>
+        <div class="bg-orb orb-3"></div>
+        <div class="particle-field" id="particleField"></div>
+    </div>
+
+    <!-- Header -->
+    <header class="app-header">
+        <div class="header-inner">
+            <div class="brand">
+                <div class="brand-icon">
+                    <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                        <circle cx="14" cy="14" r="12" stroke="url(#grad1)" stroke-width="2"/>
+                        <circle cx="14" cy="14" r="5" fill="url(#grad1)"/>
+                        <line x1="14" y1="2" x2="14" y2="8" stroke="url(#grad1)" stroke-width="2" stroke-linecap="round"/>
+                        <line x1="14" y1="20" x2="14" y2="26" stroke="url(#grad1)" stroke-width="2" stroke-linecap="round"/>
+                        <line x1="2" y1="14" x2="8" y2="14" stroke="url(#grad1)" stroke-width="2" stroke-linecap="round"/>
+                        <line x1="20" y1="14" x2="26" y2="14" stroke="url(#grad1)" stroke-width="2" stroke-linecap="round"/>
+                        <defs>
+                            <linearGradient id="grad1" x1="0" y1="0" x2="28" y2="28" gradientUnits="userSpaceOnUse">
+                                <stop stop-color="#7C3AED"/>
+                                <stop offset="1" stop-color="#4F8EF7"/>
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                </div>
+                <div class="brand-text">
+                    <h1>Process Lifecycle Visualizer</h1>
+                    <span class="brand-sub">CPU Scheduling &amp; Context Switching Simulator</span>
+                </div>
+            </div>
+            <div class="header-stats">
+                <div class="live-clock">
+                    <span class="clock-label">SYSTEM CLOCK</span>
+                    <span class="clock-value" id="systemClock">T = 0</span>
+                </div>
+                <div class="cpu-badge" id="cpuBadge">
+                    <span class="cpu-dot"></span>
+                    <span id="cpuBadgeText">CPU IDLE</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="app-main">
+
+        <!-- Left Sidebar: Configuration -->
+        <aside class="sidebar-panel glass-panel">
+            <div class="panel-header">
+                <h2>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+                    Configuration
+                </h2>
+            </div>
+
+            <!-- Algorithm -->
+            <div class="config-section">
+                <div class="section-label">Scheduling Algorithm</div>
+                <div class="algo-selector">
+                    <button class="algo-btn active" id="btnFCFS" data-algo="fcfs">
+                        <span class="algo-short">FCFS</span>
+                        <span class="algo-full">First Come First Serve</span>
+                    </button>
+                    <button class="algo-btn" id="btnRR" data-algo="rr">
+                        <span class="algo-short">RR</span>
+                        <span class="algo-full">Round Robin</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Time Quantum -->
+            <div class="config-section" id="quantumSection">
+                <div class="section-label">Time Quantum</div>
+                <div class="slider-group">
+                    <input type="range" id="timeQuantum" min="1" max="10" value="3" class="range-slider">
+                    <span class="range-value" id="quantumVal">3</span>
+                </div>
+            </div>
+
+            <!-- Context Switch Delay -->
+            <div class="config-section">
+                <div class="section-label">Context Switch Delay (ticks)</div>
+                <div class="slider-group">
+                    <input type="range" id="ctxDelay" min="0" max="5" value="1" class="range-slider">
+                    <span class="range-value" id="ctxDelayVal">1</span>
+                </div>
+            </div>
+
+            <!-- Sim Speed -->
+            <div class="config-section">
+                <div class="section-label">Simulation Speed</div>
+                <div class="slider-group">
+                    <input type="range" id="simSpeed" min="1" max="5" value="2" class="range-slider">
+                    <span class="range-value" id="simSpeedVal">2x</span>
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- Add Process -->
+            <div class="config-section">
+                <div class="section-label">Add Process</div>
+                <div class="input-row">
+                    <div class="input-group">
+                        <label for="inPID">Process ID</label>
+                        <input type="text" id="inPID" placeholder="P1" maxlength="6" class="text-input">
+                    </div>
+                    <div class="input-group">
+                        <label for="inArrival">Arrival Time</label>
+                        <input type="number" id="inArrival" value="0" min="0" max="50" class="text-input">
+                    </div>
+                </div>
+                <div class="input-row">
+                    <div class="input-group">
+                        <label for="inBurst">Burst Time</label>
+                        <input type="number" id="inBurst" value="5" min="1" max="30" class="text-input">
+                    </div>
+                    <div class="input-group">
+                        <label for="inIO">I/O Burst</label>
+                        <input type="number" id="inIO" value="0" min="0" max="10" class="text-input">
+                    </div>
+                </div>
+                <button class="btn-add" id="addProcessBtn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    Add Process
+                </button>
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- Quick Scenarios -->
+            <div class="config-section">
+                <div class="section-label">Quick Scenarios</div>
+                <div class="scenario-btns">
+                    <button class="btn-scenario" id="scenarioBasic">Basic (5 procs)</button>
+                    <button class="btn-scenario" id="scenarioIO">I/O Intensive</button>
+                    <button class="btn-scenario" id="scenarioBurst">CPU Burst</button>
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- Control Buttons -->
+            <div class="control-btns">
+                <button class="btn-primary" id="startBtn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+                    Start
+                </button>
+                <button class="btn-secondary" id="pauseBtn" disabled>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                    Pause
+                </button>
+                <button class="btn-step" id="stepBtn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5,4 15,12 5,20"/><line x1="19" y1="5" x2="19" y2="19" stroke-width="2.5"/></svg>
+                    Step
+                </button>
+                <button class="btn-danger" id="resetBtn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/></svg>
+                    Reset
+                </button>
+            </div>
+        </aside>
+
+        <!-- Center: Main Visualization -->
+        <section class="center-section">
+
+            <!-- Process Table -->
+            <div class="glass-panel process-table-panel">
+                <div class="panel-header">
+                    <h2>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="9" x2="9" y2="21"/></svg>
+                        Process Control Block (PCB) Table
+                    </h2>
+                    <div class="table-legend">
+                        <span class="legend-item"><span class="dot new-dot"></span>New</span>
+                        <span class="legend-item"><span class="dot ready-dot"></span>Ready</span>
+                        <span class="legend-item"><span class="dot running-dot"></span>Running</span>
+                        <span class="legend-item"><span class="dot waiting-dot"></span>Waiting</span>
+                        <span class="legend-item"><span class="dot terminated-dot"></span>Terminated</span>
+                    </div>
+                </div>
+                <div class="table-wrapper">
+                    <table class="pcb-table">
+                        <thead>
+                            <tr>
+                                <th>PID</th>
+                                <th>State</th>
+                                <th>Arrival</th>
+                                <th>Burst</th>
+                                <th>Remaining</th>
+                                <th>I/O Burst</th>
+                                <th>Wait Time</th>
+                                <th>Turnaround</th>
+                                <th>Completion</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pcbTableBody">
+                            <tr class="empty-row">
+                                <td colspan="10">
+                                    <div class="empty-state">
+                                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.4"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                                        <p>No processes added yet. Add processes using the panel on the left.</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- State Diagram + CPU Visualization -->
+            <div class="mid-row">
+                <!-- Process State Diagram -->
+                <div class="glass-panel state-diagram-panel">
+                    <div class="panel-header">
+                        <h2>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                            Process State Diagram
+                        </h2>
+                    </div>
+                    <div class="state-diagram">
+                        <div class="state-node new-node" id="stateNew">
+                            <div class="node-label">NEW</div>
+                            <div class="node-count" id="countNew">0</div>
+                        </div>
+                        <div class="arrow-group ag-new-ready">
+                            <div class="arrow-line"></div>
+                            <div class="arrow-label">admitted</div>
+                        </div>
+                        <div class="state-node ready-node" id="stateReady">
+                            <div class="node-label">READY</div>
+                            <div class="node-count" id="countReady">0</div>
+                        </div>
+                        <div class="arrow-group ag-ready-run">
+                            <div class="arrow-line"></div>
+                            <div class="arrow-label">dispatch</div>
+                        </div>
+                        <div class="state-node running-node pulse-ring" id="stateRunning">
+                            <div class="node-label">RUNNING</div>
+                            <div class="node-count" id="countRunning">0</div>
+                        </div>
+                        <div class="arrow-group ag-run-wait">
+                            <div class="arrow-line vert-arrow"></div>
+                            <div class="arrow-label down-label">I/O request</div>
+                        </div>
+                        <div class="state-node waiting-node" id="stateWaiting">
+                            <div class="node-label">WAITING</div>
+                            <div class="node-count" id="countWaiting">0</div>
+                        </div>
+                        <div class="arrow-group ag-wait-ready">
+                            <div class="arrow-line top-return-arrow"></div>
+                            <div class="arrow-label top-return-label">I/O done</div>
+                        </div>
+                        <div class="arrow-group ag-run-term">
+                            <div class="arrow-line"></div>
+                            <div class="arrow-label">exit</div>
+                        </div>
+                        <div class="state-node terminated-node" id="stateTerminated">
+                            <div class="node-label">TERMINATED</div>
+                            <div class="node-count" id="countTerminated">0</div>
+                        </div>
+                        <!-- Preempt arrow (RR) -->
+                        <div class="preempt-arrow" id="preemptArrow">
+                            <div class="preempt-line"></div>
+                            <div class="preempt-label">preempt (RR)</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CPU Core Visualization -->
+                <div class="glass-panel cpu-vis-panel">
+                    <div class="panel-header">
+                        <h2>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="15" x2="23" y2="15"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="15" x2="4" y2="15"/></svg>
+                            CPU &amp; Context Switch
+                        </h2>
+                    </div>
+                    <div class="cpu-display">
+                        <div class="cpu-chip" id="cpuChip">
+                            <div class="cpu-inner">
+                                <div class="cpu-process-name" id="cpuProcessName">IDLE</div>
+                                <div class="cpu-progress-ring">
+                                    <svg class="ring-svg" viewBox="0 0 100 100">
+                                        <circle class="ring-bg" cx="50" cy="50" r="38"/>
+                                        <circle class="ring-fill" id="cpuRingFill" cx="50" cy="50" r="38" stroke-dasharray="238.76" stroke-dashoffset="238.76"/>
+                                    </svg>
+                                </div>
+                                <div class="cpu-remaining" id="cpuRemaining">--</div>
+                            </div>
+                        </div>
+                        <div class="context-switch-indicator" id="ctxIndicator">
+                            <div class="ctx-icon">⚡</div>
+                            <div class="ctx-text">Context Switching...</div>
+                            <div class="ctx-bar"><div class="ctx-bar-fill" id="ctxBarFill"></div></div>
+                        </div>
+                        <div class="cpu-stats">
+                            <div class="cpu-stat-item">
+                                <span class="csi-label">Utilization</span>
+                                <span class="csi-value" id="cpuUtil">0%</span>
+                                <div class="csi-bar"><div class="csi-fill" id="cpuUtilBar" style="width:0%"></div></div>
+                            </div>
+                            <div class="cpu-stat-item">
+                                <span class="csi-label">Context Switches</span>
+                                <span class="csi-value" id="ctxSwitchCount">0</span>
+                            </div>
+                            <div class="cpu-stat-item">
+                                <span class="csi-label">Throughput</span>
+                                <span class="csi-value" id="throughput">0 proc/tick</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Queues Row -->
+            <div class="queues-row">
+                <div class="glass-panel queue-panel">
+                    <div class="panel-header">
+                        <h2>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                            Ready Queue
+                        </h2>
+                        <span class="queue-count ready-count" id="readyQueueCount">0</span>
+                    </div>
+                    <div class="queue-container" id="readyQueue">
+                        <div class="queue-empty">Empty</div>
+                    </div>
+                </div>
+                <div class="glass-panel queue-panel">
+                    <div class="panel-header">
+                        <h2>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 0 20"/><polyline points="12 6 12 12 10 14"/><path d="M20 22v-6m0 6l-3-3m3 3l3-3"/></svg>
+                            Waiting Queue (I/O)
+                        </h2>
+                        <span class="queue-count wait-count" id="waitQueueCount">0</span>
+                    </div>
+                    <div class="queue-container" id="waitQueue">
+                        <div class="queue-empty">Empty</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Gantt Chart -->
+            <div class="glass-panel gantt-panel">
+                <div class="panel-header">
+                    <h2>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="3" rx="1"/><rect x="3" y="9" width="12" height="3" rx="1"/><rect x="3" y="14" width="16" height="3" rx="1"/><rect x="3" y="19" width="8" height="3" rx="1"/></svg>
+                        Gantt Chart – CPU Execution Timeline
+                    </h2>
+                    <button class="btn-clear" id="clearGanttBtn">Clear</button>
+                </div>
+                <div class="gantt-wrapper">
+                    <div class="gantt-chart" id="ganttChart">
+                        <div class="gantt-empty">Simulation not started. Add processes and click Start.</div>
+                    </div>
+                    <div class="gantt-timeline" id="ganttTimeline"></div>
+                </div>
+            </div>
+
+            <!-- Summary Stats -->
+            <div class="glass-panel stats-panel">
+                <div class="panel-header">
+                    <h2>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                        Simulation Results
+                    </h2>
+                    <span id="algoLabel" class="algo-tag">FCFS</span>
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">⏱</div>
+                        <div class="stat-val" id="statAvgWait">--</div>
+                        <div class="stat-name">Avg Wait Time</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🔄</div>
+                        <div class="stat-val" id="statAvgTurnaround">--</div>
+                        <div class="stat-name">Avg Turnaround</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">✅</div>
+                        <div class="stat-val" id="statCompleted">0</div>
+                        <div class="stat-name">Completed</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">💻</div>
+                        <div class="stat-val" id="statCPUUtil">0%</div>
+                        <div class="stat-name">CPU Utilization</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">↔️</div>
+                        <div class="stat-val" id="statCtxSwitches">0</div>
+                        <div class="stat-name">Context Switches</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🕐</div>
+                        <div class="stat-val" id="statTotalTime">0</div>
+                        <div class="stat-name">Total Time</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Right Sidebar: Event Log -->
+        <aside class="log-sidebar glass-panel">
+            <div class="panel-header">
+                <h2>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
+                    Event Log
+                </h2>
+                <div class="log-controls">
+                    <label class="toggle-label">
+                        <input type="checkbox" id="autoScrollLog" checked>
+                        <span class="toggle-switch"></span>
+                        Auto
+                    </label>
+                    <button class="btn-clear" id="clearLogBtn">Clear</button>
+                </div>
+            </div>
+            <div class="event-log" id="eventLog">
+                <div class="log-entry log-info">
+                    <span class="log-time">T=0</span>
+                    <span class="log-msg">System initialized. Add processes to begin.</span>
+                </div>
+            </div>
+        </aside>
+
+    </main>
+
+    <!-- Context Switch Overlay -->
+    <div class="ctx-overlay" id="ctxOverlay">
+        <div class="ctx-overlay-content">
+            <div class="ctx-arrows">
+                <div class="ctx-proc-out" id="ctxProcOut">P1</div>
+                <div class="ctx-switch-icon">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#facc15" stroke-width="2">
+                        <polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/>
+                        <polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/>
+                    </svg>
+                </div>
+                <div class="ctx-proc-in" id="ctxProcIn">P2</div>
+            </div>
+            <div class="ctx-overlay-text">Context Switch in Progress</div>
+            <div class="ctx-overlay-sub">Saving state of <strong id="ctxSavingProc">P1</strong> → Loading state of <strong id="ctxLoadingProc">P2</strong></div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
