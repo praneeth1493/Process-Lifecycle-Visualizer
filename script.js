@@ -34,6 +34,7 @@ let ctxSwitchRemaining = 0;
 let isContextSwitching = false;
 let ganttBlocks = [];
 let lastGanttPID = null;
+let readyOrderCounter = 0;
 
 // =============================================
 // DOM REFERENCES
@@ -128,6 +129,7 @@ class Process {
     this.rrUsed = 0;
     this.hasHadIO = false;
     this.ioCount = 0;
+    this.readyOrder = 0; // Track FIFO order for Round Robin
   }
 }
 
@@ -405,7 +407,6 @@ function addGanttBlock(pid, type = 'cpu', ticks = 1, colorIdx = 0) {
 
   block.title = `${pid} | T=${clockTick - ticks} to T=${clockTick}`;
   dom.ganttChart.appendChild(block);
-  dom.ganttChart.scrollLeft = dom.ganttChart.scrollWidth;
 
   // Timeline tick
   const tick = document.createElement('div');
@@ -413,7 +414,10 @@ function addGanttBlock(pid, type = 'cpu', ticks = 1, colorIdx = 0) {
   tick.textContent = String(clockTick - ticks);
   tick.style.minWidth = `${Math.max(36, ticks * 36)}px`;
   dom.ganttTimeline.appendChild(tick);
-  dom.ganttTimeline.scrollLeft = dom.ganttTimeline.scrollWidth;
+
+  // The wrapper has overflow-x: auto, so scroll it
+  const wrapper = dom.ganttChart.parentElement;
+  wrapper.scrollLeft = wrapper.scrollWidth;
 
   ganttBlocks.push({ pid, type, start: clockTick - ticks, end: clockTick });
 }
@@ -434,8 +438,8 @@ function scheduleFCFS() {
 function scheduleRR() {
   const ready = processes.filter(p => p.state === STATES.READY);
   if (ready.length === 0) return null;
-  // FIFO order within ready queue (by arrival, then PID order)
-  ready.sort((a, b) => a.arrival - b.arrival || a.pid.localeCompare(b.pid));
+  // FIFO order: sort by readyOrder to ensure preempted processes go to back of queue
+  ready.sort((a, b) => a.readyOrder - b.readyOrder);
   return ready[0];
 }
 
@@ -455,6 +459,7 @@ function simulationTick() {
   processes.forEach(p => {
     if (p.state === STATES.NEW && p.arrival <= clockTick) {
       p.state = STATES.READY;
+      p.readyOrder = readyOrderCounter++;
       admitted.push(p.pid);
     }
   });
@@ -469,6 +474,7 @@ function simulationTick() {
       p.ioRemaining--;
       if (p.ioRemaining <= 0) {
         p.state = STATES.READY;
+        p.readyOrder = readyOrderCounter++;
         ioCompleted.push(p.pid);
       }
     }
@@ -489,6 +495,12 @@ function simulationTick() {
       dom.ctxOverlay.classList.remove('visible');
       dom.cpuBadge.className = 'cpu-badge';
       dom.cpuBadgeText.textContent = 'CPU IDLE';
+      
+      // Dispatch the next process after context switch completes
+      const next = selectNextProcess();
+      if (next) {
+        dispatchProcess(next);
+      }
     }
 
     clockTick++;
@@ -543,13 +555,17 @@ function simulationTick() {
         const hadProc = currentProcess;
         currentProcess = null;
         hadProc.state = STATES.READY;
+        hadProc.readyOrder = readyOrderCounter++; // Send to back of ready queue
         rrQuantumCounter = 0;
         log(`<strong>${hadProc.pid}</strong> preempted (RR quantum exhausted) → Ready Queue`, 'warn');
 
-        // Trigger context switch if there are other ready processes
+        // Trigger context switch to next process
         const nextCandidate = selectNextProcess();
-        if (nextCandidate) {
+        if (nextCandidate && nextCandidate.pid !== hadProc.pid) {
           triggerContextSwitch(hadProc.pid, nextCandidate.pid);
+        } else if (nextCandidate) {
+          // Only process in queue is the preempted one - re-dispatch it
+          dispatchProcess(nextCandidate);
         }
       }
     }
@@ -561,9 +577,9 @@ function simulationTick() {
     if (next) {
       const prev = lastGanttPID;
 
-      if (prev && prev !== next.pid && ctxDelay > 0) {
+      // Only trigger context switch if we're switching between different processes
+      if (prev && prev !== next.pid && prev !== 'IDLE' && prev !== 'CTX' && ctxDelay > 0) {
         triggerContextSwitch(prev, next.pid);
-        // Process will be dispatched automatically once context switch completes (isContextSwitching = false)
       } else {
         dispatchProcess(next);
       }
@@ -572,6 +588,10 @@ function simulationTick() {
       const hasUnterminated = processes.some(p => p.state !== STATES.TERMINATED);
       if (hasUnterminated) {
         addGanttBlock('IDLE', 'idle', 1, 0);
+        
+        // Prevent context switch to next process from a long-terminated process
+        lastGanttPID = 'IDLE';
+
         if (dom.cpuBadge.className !== 'cpu-badge') {
           dom.cpuBadge.className = 'cpu-badge';
           dom.cpuBadgeText.textContent = 'CPU IDLE';
@@ -618,7 +638,12 @@ function dispatchProcess(proc) {
 }
 
 function triggerContextSwitch(outPID, inPID) {
-  if (ctxDelay === 0) return;
+  if (ctxDelay === 0) {
+    // If no delay, dispatch immediately
+    const next = processes.find(p => p.pid === inPID && p.state === STATES.READY);
+    if (next) dispatchProcess(next);
+    return;
+  }
 
   isContextSwitching = true;
   ctxSwitchRemaining = ctxDelay;
@@ -642,6 +667,9 @@ function triggerContextSwitch(outPID, inPID) {
 
   addGanttBlock('CTX', 'ctx', ctxDelay, 0);
   log(`⚡ Context Switch: Saving <strong>${outPID}</strong> → Loading <strong>${inPID}</strong> (${ctxDelay} tick delay)`, 'ctx');
+
+  // Remember the process we are switching to
+  lastGanttPID = (inPID === '...') ? null : inPID;
 }
 
 // =============================================
@@ -667,6 +695,7 @@ function startSimulation() {
   contextSwitches = 0;
   rrQuantumCounter = 0;
   isContextSwitching = false;
+  readyOrderCounter = 0;
   lastGanttPID = null;
 
   // Reset process runtime state (keep config)
@@ -733,6 +762,7 @@ function stepSimulation() {
     contextSwitches = 0;
     rrQuantumCounter = 0;
     isContextSwitching = false;
+    readyOrderCounter = 0;
     lastGanttPID = null;
 
     processes.forEach(p => {
@@ -795,6 +825,7 @@ function resetSimulation() {
   rrQuantumCounter = 0;
   isContextSwitching = false;
   lastGanttPID = null;
+  readyOrderCounter = 0;
 
   dom.systemClock.textContent = 'T = 0';
   dom.cpuProcessName.textContent = 'IDLE';
