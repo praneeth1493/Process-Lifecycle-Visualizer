@@ -4,6 +4,8 @@ An interactive CPU scheduling and context switching simulator that visualizes pr
 
 ![Process Lifecycle Visualizer](https://img.shields.io/badge/Status-Working-brightgreen)
 ![License](https://img.shields.io/badge/License-MIT-blue)
+Live Demo Link
+(https://praneeth1493.github.io/Process-Lifecycle-Visualizer/)
 
 ## 🚀 Features
 
