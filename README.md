@@ -2,8 +2,7 @@
 
 An interactive CPU scheduling and context switching simulator that visualizes process lifecycle, scheduling algorithms (FCFS, Round Robin), and provides real-time Gantt charts for operating systems education.
 
-![Process Lifecycle Visualizer](https://img.shields.io/badge/Status-Working-brightgreen)
-![License](https://img.shields.io/badge/License-MIT-blue)
+
 Live Demo Link
 (https://praneeth1493.github.io/Process-Lifecycle-Visualizer/)
 
