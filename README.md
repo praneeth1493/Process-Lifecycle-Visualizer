@@ -144,7 +144,6 @@ npx http-server
 ├── script.js           # Simulation logic and algorithms
 ├── style.css           # Glassmorphism UI styles
 ├── README.md           # This file
-└── FIXES.md           # Bug fixes documentation
 ```
 
 ## 🐛 Recent Bug Fixes
@@ -154,8 +153,6 @@ All major issues have been resolved:
 - ✅ Fixed infinite context switch loop when delay = 0
 - ✅ Round Robin preemption logic improved
 - ✅ Gantt chart process tracking corrected
-
-See [FIXES.md](FIXES.md) for detailed information.
 
 ## 🎓 Educational Use
 
