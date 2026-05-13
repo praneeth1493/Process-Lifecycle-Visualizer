@@ -190,10 +190,6 @@ Watch processes move between RUNNING and WAITING states.
 
 Feel free to fork, modify, and use this project for educational purposes!
 
-## 📄 License
-
-MIT License - Free to use for educational and personal projects.
-
 ## 🙏 Acknowledgments
 
 Built with modern web technologies and designed for operating systems education.
